@@ -19,7 +19,7 @@
   "Given a list of any number of tuples, add them all together."
   (list_to_tuple
     (flatten
-      (map (lambda (x) (tuple_to_list x)) a))))
+      (lists:map (lambda (x) (tuple_to_list x)) a))))
 
 (defun partition-list (list-data)
   "This function takes lists of even length with an implicit key (atom) value
