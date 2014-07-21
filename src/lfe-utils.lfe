@@ -1,13 +1,5 @@
 (defmodule lfe-utils
-  (export all)
-  (import
-    (from lists
-      (flatten 1)
-      (foldl 3)
-      (map 2)
-      (zipwith 3))
-    (from math
-      (pow 2))))
+  (export all))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; data types and type ops
@@ -18,14 +10,14 @@
 (defun add-tuples (a)
   "Given a list of any number of tuples, add them all together."
   (list_to_tuple
-    (flatten
+    (lists:flatten
       (lists:map (lambda (x) (tuple_to_list x)) a))))
 
 (defun partition-list (list-data)
   "This function takes lists of even length with an implicit key (atom) value
   pairing and generates a list of two lists: one with all the keys, and the
   other with all the values."
-  (: lists partition #'is_atom/1 list-data))
+  (lists:partition #'is_atom/1 list-data))
 
 (defun pair-dict (data)
   "'data' is a list of implicit pairs:
@@ -34,11 +26,11 @@
 
   This list is partitioned. zipped to tuples, and then converted to a dict."
   (let (((tuple keys values) (partition-list data)))
-    (: dict from_list
-       (: lists zip keys values))))
+    (dict:from_list
+       (lists:zip keys values))))
 
 (defun list->tuple (list-data)
-  (let ((quoted (: lists map (lambda (x) `',x) list-data)))
+  (let ((quoted (lists:map (lambda (x) `',x) list-data)))
     (eval `(tuple ,@quoted))))
 
 (defun atom-cat (atom-1 atom-2)
@@ -46,7 +38,7 @@
   (list_to_atom (++ (atom_to_list atom-1) (atom_to_list atom-2))))
 
 (defun strip (string)
-  (: re replace
+  (re:replace
      string
      '"(^\\s+)|(\\s+$)"
       ""
@@ -60,10 +52,10 @@
   (lists:member (car string) (lists:seq 65 90)))
 
 (defun string? (data)
-  (: io_lib printable_list data))
+  (io_lib:printable_list data))
 
 (defun unicode? (data)
-  (: io_lib printable_unicode_list data))
+  (io_lib:printable_unicode_list data))
 
 (defun list? (data)
   (and (is_list data) (not (string? data))))
@@ -119,11 +111,11 @@
   ;; > (set odd6': (set odd6? (lambda (x) (if (== 1 (band x 1)) 'true 'false)))
   ;;
   ;; benchmarks were done with the following:
-  ;; (set numbers (lambda (x) (: lists seq 1 x))
-  ;; (set testit (lambda (func calls) (: lists map (lambda (x) (funcall func x)) (funcall numbers calls))))
-  ;; (set raw-benchmark (lambda (func calls runs) (: lists map (lambda (_) (let (((tuple micro _) (: timer tc (lambda () (funcall testit func calls))))) (* micro 1.0e-6))) (: lists seq 1 runs))))
-  ;; (set process-results (lambda (x) (let ((min (: lists min x)) (max (: lists max x)) (med (: lists nth (round (/ (length x) 2)) (: lists sort x))) (avg (/ (: lists foldl (lambda (y acc) (+ y acc)) 0 x) (length x)))) (list min max med avg))))
-  ;; (set format-results (lambda (x) (: io format '"Range: ~p - ~p mics~nMedian: ~p mics~nAverage: ~p mics~n" (funcall process-results x))))
+  ;; (set numbers (lambda (x) (lists:seq 1 x))
+  ;; (set testit (lambda (func calls) (lists:map (lambda (x) (funcall func x)) (funcall numbers calls))))
+  ;; (set raw-benchmark (lambda (func calls runs) (lists:map (lambda (_) (let (((tuple micro _) (timer:tc (lambda () (funcall testit func calls))))) (* micro 1.0e-6))) (lists:seq 1 runs))))
+  ;; (set process-results (lambda (x) (let ((min (lists:min x)) (max (lists:max x)) (med (lists:nth (round (/ (length x) 2)) (lists:sort x))) (avg (/ (lists:foldl (lambda (y acc) (+ y acc)) 0 x) (length x)))) (list min max med avg))))
+  ;; (set format-results (lambda (x) (io:format '"Range: ~p - ~p mics~nMedian: ~p mics~nAverage: ~p mics~n" (funcall process-results x))))
   ;; (set benchmark (lambda (func calls runs) (funcall format-results (funcall raw-benchmark func calls runs))))
   ;;
   ;; results:
@@ -191,14 +183,14 @@
 
 (defun round (number precision)
   "Round a floating point number to the given number of decimal places."
-  (let ((p (pow 10 precision)))
+  (let ((p (math:pow 10 precision)))
     (/ (erlang:round (* number p)) p)))
 
 (defun dot-product (a b)
   "This doesn't appear to be needed for this particular library, but it was fun
   to write, and is quite pretty, so it's staying ;-)"
-  (foldl #'+/2 0
-    (zipwith #'*/2 a b)))
+  (lists:foldl #'+/2 0
+    (lists:zipwith #'*/2 a b)))
 
 (defun scale
   "Given a value and a range that value belongs to, calculate a new value based
@@ -233,6 +225,19 @@
   ((n acc) (when (> n 0))
     (factorial (- n 1) (* n acc))))
 
+(defun get-next-prime (x)
+  "Get the next prime in ascending order."
+  (flet ((f (y)
+            (cond ((prime? y) y)
+                  ('true (get-next-prime (+ x 1))))))
+    (f (+ x 1))))
+
+(defun prime? (x)
+  "If a number consists of more than two factors, it is not a prime number."
+  (let ((factors (lfe-utils:factors x)))
+    (cond ((== 2 (length (lists:usort factors))) 'true)
+          ('true 'false))))
+
 (defun factors (n)
   "Tail-recursive prime factors function."
   (factors n 2 '()))
@@ -246,29 +251,259 @@
   ((n k acc)
     (factors n (+ k 1) acc)))
 
+(defun levenshtein-simple
+  (('() str)
+    (length str))
+  ((str '())
+    (length str))
+  (((cons a str1) (cons b str2)) (when (== a b))
+    (levenshtein-simple str1 str2))
+  (((= (cons _ str1-tail) str1) (= (cons _ str2-tail) str2))
+    (+ 1 (lists:min
+          (list
+           (levenshtein-simple str1 str2-tail)
+           (levenshtein-simple str1-tail str2)
+           (levenshtein-simple str1-tail str2-tail))))))
+
+; The alternate implementations below were tested with different lengths of
+; strings and from 1 to 10 to 100 to 1000 and to 10,000 iterations. Only
+; very minor differences in performance were demonstrated. The implementation
+; above provided the best overall performance, with the third implementation
+; coming in second place, generally. The differences are so little as to
+; not matter.
+;
+; (defun levenshtein-simple-2
+;   (('() str)
+;     (length str))
+;   ((str '())
+;     (length str))
+;   (((cons a str1) (cons b str2)) (when (== a b))
+;     (levenshtein-simple str1 str2))
+;   ((str1 str2)
+;     (+ 1 (lists:min
+;           (list
+;            (levenshtein-simple str1 (cdr str2))
+;            (levenshtein-simple (cdr str1) str2)
+;            (levenshtein-simple (cdr str1) (cdr str2)))))))
+;
+; (defun levenshtein-simple-3 (str1 str2)
+;   (cond
+;     ((== '() str1)
+;      (length str1))
+;     ((== '() str2)
+;      (length str1))
+;     ((== (car str1) (car str2))
+;      (levenshtein-simple (cdr str1) (cdr str2)))
+;     ('true
+;       (+ 1 (lists:min
+;              (list
+;                (levenshtein-simple str1 (cdr str2))
+;                (levenshtein-simple (cdr str1) str2)
+;                (levenshtein-simple (cdr str1) (cdr str2))))))))
+
+(defun levenshtein-distance (str1 str2)
+  (let (((tuple distance _) (levenshtein-distance
+                               str1 str2 (dict:new))))
+    distance))
+
+(defun levenshtein-distance
+  (((= '() str1) str2 cache)
+    (tuple (length str2)
+           (dict:store (tuple str1 str2)
+                       (length str2)
+                       cache)))
+  ((str1 (= '() str2) cache)
+    (tuple (length str1)
+           (dict:store (tuple str1 str2)
+                       (length str1)
+                       cache)))
+  (((cons a str1) (cons b str2) cache) (when (== a b))
+    (levenshtein-distance str1 str2 cache))
+  (((= (cons _ str1-tail) str1) (= (cons _ str2-tail) str2) cache)
+     (case (dict:is_key (tuple str1 str2) cache)
+       ('true (tuple (dict:fetch (tuple str1 str2) cache) cache))
+       ('false (let* (((tuple l1 c1) (levenshtein-distance str1 str2-tail cache))
+                      ((tuple l2 c2) (levenshtein-distance str1-tail str2 c1))
+                      ((tuple l3 c3) (levenshtein-distance str1-tail str2-tail c2))
+                      (len (+ 1 (lists:min (list l1 l2 l3)))))
+                 (tuple len (dict:store (tuple str1 str2) len c3)))))))
+
+(defun levenshtein-sort (str1 str-list)
+  (tuple str1
+    (lists:sort
+      (lists:map
+        (lambda (str2)
+          (list (levenshtein-distance str1 str2) str2))
+        str-list))))
+
 ;;;;;;;;;
 ;;; files
 (defun dump-data (filename data)
   "A convenience function for writing Erlang data to disk."
-  (: file write_file filename
-     (: io_lib fwrite '"~p.~n" (list data))))
+  (file:write_file filename
+     (io_lib:fwrite '"~p.~n" (list data))))
 
 (defun get-home-dir ()
   (let (((list (tuple 'home (list home)))
-         (: lists sublist (: init get_arguments) 3 1)))
+         (lists:sublist (init:get_arguments) 3 1)))
     home))
 
 (defun is-home-dir? (path)
-  (cond ((=:= '"~/" (: string substr path 1 2))
+  (cond ((=:= '"~/" (string:substr path 1 2))
          'true)
         ('true 'false)))
 
 (defun expand-home-dir (path-with-home)
   (cond ((is-home-dir? path-with-home)
-         (: filename join
+         (filename:join
             (list (get-home-dir)
-                  (: string substr path-with-home 3))))
+                  (string:substr path-with-home 3))))
         ('true path-with-home)))
+
+(defun get-deps ()
+  "Get the default dependency directories for the current directory."
+  (get-deps '("./deps")))
+
+(defun get-deps (deps-dirs)
+  "This function supports multiple dependency directories.
+
+  Given a list of directories, each of which contains dependencies,
+  return the full list of dependency directories, from all of the combined
+  directories provided."
+  (filter-deps
+    (get-deps-subdirs deps-dirs)))
+
+(defun get-deps-subdirs (deps-dirs)
+  "Given a set of dependency directories, get a list of lists, where each
+  of the lists is the list of directories in one of the passed deps dirs.
+  Once the list of lists is obtained, collapse these into a single list."
+  (lists:merge
+    (lists:map
+      (lambda (x)
+        (filelib:wildcard (++ x "/*")))
+      deps-dirs)))
+
+(defun check-deps (deps-subdirs)
+  "Given a list of dependency directories, check to see which subdirectories
+  we actually care about. Those we don't want, return false."
+  (lists:map
+    (lambda (x)
+      (if (and
+            ;; only keep it if it's a dir and
+            (filelib:is_dir x)
+            ;; it doesn't begin with a "."
+            (not (== (car ".")
+                     (car (filename:basename x)))))
+        x))
+    deps-subdirs))
+
+(defun filter-deps (deps-subdirs)
+  "Filter the dependencies subdirectories to return only the ones that pass
+  the check-deps criteria."
+  (lists:filter
+    (lambda (x)
+      (not (== 'false x)))
+    (check-deps deps-subdirs)))
+
+(defun compile (lfe-files)
+  (compile lfe-files (get-deps) "."))
+
+(defun compile (lfe-files deps-dirs out-dir)
+  ;; update code paths
+  (code:set_path (++ (get-deps deps-dirs)
+                     (code:get_path)))
+  ;; do actual compile
+  (lists:map
+    (lambda (x)
+      (lfe_comp:file x `(verbose report #(outdir ,out-dir))))
+    lfe-files))
+
+(defun compile-src ()
+  (compile-src "./ebin"))
+
+(defun compile-src (out-dir)
+  (compile (filelib:wildcard "./src/*.lfe") (get-deps) out-dir))
+
+(defun compile-test ()
+  (compile-test "./.eunit"))
+
+(defun compile-test (out-dir)
+  (compile (filelib:wildcard "./test/**/*.lfe") (get-deps) out-dir))
+
+(defun files->beams (file-data)
+  "This function handles two cases:
+
+    * Given a list of 2-tuples #(module-name filename), with the filenames
+      ending in '.beam', return a list of tuples with no '.beam' extension,
+      e.g.: #(module-name rootname).
+    * Given a list of filenames, return a list of beams (i.e., no file
+      extensions)."
+  (lists:map
+    (match-lambda
+      (((tuple mod filename))
+        `#(,mod ,(filename:rootname filename)))
+      ((filename)
+        (filename:rootname filename)))
+    file-data))
+
+(defun beams->modules (beams-list)
+  (lists:map
+    #'beam->module/1
+    beams-list))
+
+(defun modules->beams (module-list)
+  (lists:usort
+    (lists:map
+      (lambda (x)
+        (filename:rootname (code:which x)))
+      module-list)))
+
+(defun get-beam-attrs (beam)
+  "Given an atom representing a plugin's name, return its module
+  attributes."
+  (let (((tuple 'ok (tuple _ (list (tuple 'attributes attrs))))
+         (beam_lib:chunks beam '(attributes))))
+    attrs))
+
+(defun get-beam-attrs (beam)
+  "Given an atom representing a plugin's name, return its module
+  attributes."
+  (let (((tuple 'ok (tuple _ (list (tuple 'attributes attrs))))
+         (beam_lib:chunks beam '(attributes))))
+    attrs))
+
+(defun module->beam (module)
+  (code:which module))
+
+(defun beam->module (beam)
+  (let (((tuple 'ok (tuple module _))
+         (beam_lib:chunks beam '())))
+    module))
+
+(defun get-module-attrs (module)
+  (get-beam-attrs (code:which module)))
+
+(defun get-beam-behaviours (beam)
+  "Given an atom representing a plugin's name, return its module
+  attributes."
+  (get-behaviour (get-beam-attrs beam)))
+
+;; provided for the spelling-impaired
+(defun get-beam-behaviors (beam)
+  (get-beam-behaviours beam))
+
+(defun get-module-behaviours (module)
+  (get-beam-behaviours (code:which module)))
+
+;; provided for the spelling-impaired
+(defun get-module-behaviors (module)
+  (get-module-behaviours module))
+
+(defun get-behaviour (attrs)
+  (proplists:get_value
+    'behaviour
+    attrs
+    (proplists:get_value 'behavior attrs)))
 
 ;;;;;;;;;;;
 ;;; records
@@ -288,6 +523,37 @@
   deprecated."
   'ok)
 
+;;;;;;;;;
+;;; text
+(defun wrap-text (text)
+  (wrap-text text 78))
+
+(defun wrap-text (text max-len)
+  (string:join
+    (make-wrapped-lines
+      (string:tokens text " ") max-len)
+    "\n"))
+
+(defun make-wrapped-lines
+  (((cons word rest) max-len)
+    (let (((tuple _ len last-line lines) (assemble-lines
+                                           max-len
+                                           word
+                                           rest)))
+      (lists:reverse (cons last-line lines)))))
+
+(defun assemble-lines (max-len word rest)
+  (lists:foldl
+    #'assemble-line/2
+    (tuple max-len (length word) word '()) rest))
+
+(defun assemble-line
+  ((word (tuple max line-len line acc))
+    (when (> (+ (length word) line-len) max))
+    (tuple max (length word) word (cons line acc)))
+  ((word (tuple max line-len line acc))
+    (tuple max (+ line-len 1 (length word)) (++ line " " word) acc)))
+
 ;;;;;;;;
 ;;; misc
 (defun uuid4 ()
@@ -299,10 +565,10 @@
             (b (size 16))
             (c (size 16))
             (d (size 16))
-            (e (size 48))) (: crypto rand_bytes 16))
+            (e (size 48))) (crypto:rand_bytes 16))
         (format-template '"~8.16.0b-~4.16.0b-4~3.16.0b-~4.16.0b-~12.16.0b")
         (uuid-data (list a b (band c #x0fff) (band d #x3fff) (bor #x8000 e)))
-        (string (: io_lib format format-template uuid-data)))
+        (string (io_lib:format format-template uuid-data)))
     (list_to_binary string)))
 
 
@@ -337,3 +603,10 @@
     #(emulator ,(erlang:system_info 'version))
     #(driver-version ,(erlang:system_info 'driver_version))
     #(lfe ,(get-lfe-version))))
+
+(defun get-lfe-utils-version ()
+  (get-app-src-version "src/lfe-utils.app.src"))
+
+(defun get-versions ()
+  (++ (get-version)
+      `(#(lfe-utils ,(get-lfe-utils-version)))))

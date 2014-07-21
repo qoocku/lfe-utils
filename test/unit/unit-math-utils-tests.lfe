@@ -13,11 +13,10 @@
       (unit-scale 2)
       (uuid4 0) (uuid4 1)
       (partition-list 1)
-      (pair-dict 1))
-    (from lists
-      (map 2)
-      (seq 2)
-      (zipwith 3))))
+      (pair-dict 1)
+      (levenshtein-simple 2)
+      (levenshtein-distance 2)
+      (levenshtein-sort 2))))
 
 (include-lib "deps/lfeunit/include/lfeunit-macros.lfe")
 
@@ -36,11 +35,11 @@
   (is-equal 2.11 (round 2.111 2))
   (is-equal 2.12 (round 2.115 2))
   (is-equal 2.99985 (round 2.999849 5))
-  (let* ((inputs (seq 1 10))
-         (results (map (lambda (x) (round (/ x 11) 3)) inputs))
+  (let* ((inputs (lists:seq 1 10))
+         (results (lists:map (lambda (x) (round (/ x 11) 3)) inputs))
          (expected (list 0.091 0.182 0.273 0.364 0.455
                          0.545 0.636 0.727 0.818 0.909)))
-    (zipwith (lambda (a b) (is-equal a b)) expected results)))
+    (lists:zipwith (lambda (a b) (is-equal a b)) expected results)))
 
 (deftest dot-product
   (is-equal 32 (dot-product '(1 2 3) '(4 5 6)) )
@@ -72,16 +71,16 @@
   (is-equal 255 (color-scale 1.0 #(0.0 1.0))))
 
 (deftest odd?
-  (is (: lfe-utils odd? 1))
-  (is-not (: lfe-utils odd? 2))
-  (is (: lfe-utils odd? 3))
-  (is-not (: lfe-utils odd? 4)))
+  (is (lfe-utils:odd? 1))
+  (is-not (lfe-utils:odd? 2))
+  (is (lfe-utils:odd? 3))
+  (is-not (lfe-utils:odd? 4)))
 
 (deftest even?
-  (is-not (: lfe-utils even? 1))
-  (is (: lfe-utils even? 2))
-  (is-not (: lfe-utils even? 3))
-  (is (: lfe-utils even? 4)))
+  (is-not (lfe-utils:even? 1))
+  (is (lfe-utils:even? 2))
+  (is-not (lfe-utils:even? 3))
+  (is (lfe-utils:even? 4)))
 
 (deftest factorial
   (is-equal 1 (factorial 0))
@@ -103,3 +102,40 @@
   (is-equal '(5 2 1) (factors 10))
   (is-equal '(5 5 2 2 1) (factors 100))
   (is-equal '(333667 37 3 3 3 1) (factors 333333333)))
+
+(deftest levenshtein-simple
+  (is-equal 0 (levenshtein-simple "a" "a"))
+  (is-equal 1 (levenshtein-simple "a" ""))
+  (is-equal 1 (levenshtein-simple "" "b"))
+  (is-equal 0 (levenshtein-simple "" ""))
+  (is-equal 0 (levenshtein-simple "abc" "abc"))
+  (is-equal 1 (levenshtein-simple "abc" "abd"))
+  (is-equal 1 (levenshtein-simple "abc" "abb"))
+  (is-equal 3 (levenshtein-simple "abc" "cde"))
+  (is-equal 3 (levenshtein-simple "abc" "def"))
+  (is-equal 2 (levenshtein-simple "stop" "tops"))
+  (is-equal 3 (levenshtein-simple "kitten" "sitting"))
+  (is-equal 8 (levenshtein-simple "rosettacode" "raisethysword")))
+
+(deftest levenshtein-distance
+  (is-equal 0 (levenshtein-distance "a" "a"))
+  (is-equal 1 (levenshtein-distance "a" ""))
+  (is-equal 1 (levenshtein-distance "" "b"))
+  (is-equal 0 (levenshtein-distance "" ""))
+  (is-equal 0 (levenshtein-distance "abc" "abc"))
+  (is-equal 1 (levenshtein-distance "abc" "abd"))
+  (is-equal 1 (levenshtein-distance "abc" "abb"))
+  (is-equal 3 (levenshtein-distance "abc" "cde"))
+  (is-equal 3 (levenshtein-distance "abc" "def"))
+  (is-equal 2 (levenshtein-distance "stop" "tops"))
+  (is-equal 3 (levenshtein-distance "kitten" "sitting"))
+  (is-equal 8 (levenshtein-distance "rosettacode" "raisethysword")))
+
+(deftest levenshtein-sort
+  (is-equal
+    #("aaaa"
+      ((1 "aaab") (1 "aaac") (1 "aaba")
+       (2 "abab") (3 "abbb") (4 "bbbb")))
+    (levenshtein-sort
+      "aaaa"
+      '("bbbb" "aaac" "abab" "aaba" "aaab" "abbb"))))
